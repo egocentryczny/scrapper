@@ -21,50 +21,23 @@ def get_driver():
     )
     return driver
 
-def connect_to_mzgov(browser):
-    base_url = 'https://www.gov.pl/web/szczepimysie/raport-szczepien-przeciwko-covid-19'
+def conntect_to_page_and_wait_for_specific_element(browser, url, by, by_satisfier, timeout, max_tries):
     connection_attempts = 0
-    while connection_attempts < 3:
+    while connection_attempts < max_tries:
         try:
-            print("Connecting to MZ.GOV...")
-            browser.get(base_url)
-            WebDriverWait(browser, 30).until(
-                EC.presence_of_element_located((By.TAG_NAME, "iframe"))
-            )
-            print("Connected to MZ.GOV!")
-            return True
-        except Exception:
-            connection_attempts += 1
-            print(f'Error connecting to {base_url}')
-            print(f'Attempt #{connection_attempts}.')
-
-    return False
-
-def connect_to_arcgis(browser, url):
-    connection_attempts = 0
-    while connection_attempts < 3:
-        try:
-            print("Connecting to ARCGIS...")
+            print(f"Connecting to [ {url} ]")
             browser.get(url)
-            WebDriverWait(browser, 30).until(
-                EC.presence_of_element_located((By.TAG_NAME, "iframe"))
+            WebDriverWait(browser, timeout).until(
+                EC.presence_of_element_located((by, by_satisfier))
             )
-            print("Connected to ARCGIS!")
-            return True
+            return
         except Exception:
             connection_attempts += 1
-            print(f'Error connecting to {url}')
+            print(f"Error connecting to [ {url} ]")
+    raise Exception(f"Error connecting to [ {url} ]")
 
-    return False
-
-
-def parse_mz_html(html):
-    soup = BeautifulSoup(html, 'html.parser')
-    iframe_blocks = soup.find_all('iframe')
-    return iframe_blocks[0].get('src')
-
-def parse_arcgis_html(html):
-    soup = BeautifulSoup(html, 'html.parser')
+def parse_for_src_from_iframe(html):
+    soup = BeautifulSoup(html, "html.parser")
     iframe_blocks = soup.find_all('iframe')
     return iframe_blocks[0].get('src')
 
@@ -72,50 +45,49 @@ def connect_to_rcb_gis(browser, url):
     connection_attempts = 0
     while connection_attempts < 1:
         try:
-            print("Connecting to RCB GIS...")
+            print(f"Connecting to [ {url} ]")
             browser.get(url)
-            for x in range(0,15):
-                sleep(30)
+            for x in range(0,120):
+                sleep(60)
                 browser.get_screenshot_as_file(f'./{x}.png')        
             # WebDriverWait(browser, 60).until(
             #     EC.presence_of_element_located((By.CLASS_NAME, 'full-container'))
             # )
             print("Conntected to RCB GIS!")
-            return True
         except Exception:
             connection_attempts += 1
             print(f'Error connecting to {url}')
-    return False
+            raise Exception(f'Error connecting to RCB GIS')
 
 def parse_rcb_gis(html):
     soup = BeautifulSoup(html, 'html.parser')
     print(soup.prettify())
-    # iframe_blocks = soup.find_all('iframe')
-    # return iframe_blocks[0].get('src')
 
 
 
 if __name__ == '__main__':
     browser = get_driver()
-    next_url = ""
-    if connect_to_mzgov(browser=browser):
+    next_url = "https://www.gov.pl/web/szczepimysie/raport-szczepien-przeciwko-covid-19"
+    
+    try:
+        #MZ PAGE
+        conntect_to_page_and_wait_for_specific_element(browser=browser, url=next_url, by=By.TAG_NAME, by_satisfier="iframe", timeout=30, max_tries=3)
         html = browser.page_source
-        next_url = parse_mz_html(html)
-        print(next_url)
-    browser.quit()
-
-    browser = get_driver()
-    if connect_to_arcgis(browser=browser, url=next_url):
+        next_url = parse_for_src_from_iframe(html)
+        #ARCGIS
+        conntect_to_page_and_wait_for_specific_element(browser=browser, url=next_url, by=By.TAG_NAME, by_satisfier="iframe", timeout=30, max_tries=3)
         html = browser.page_source
-        next_url = parse_arcgis_html(html)
-        print(next_url)
-    browser.quit()
-
-    browser = get_driver()
-    if connect_to_rcb_gis(browser = browser, url = next_url):
+        next_url = parse_for_src_from_iframe(html)
+        #RCB ARCGIS
+        connect_to_rcb_gis(browser = browser, url = next_url)
         html = browser.page_source
         parse_rcb_gis(html)
-    browser.quit()
+    except Exception as ex:
+        print(ex)
+    finally:
+        browser.quit()
+
+
 
     
 
